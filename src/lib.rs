@@ -138,6 +138,9 @@ fn capture_frame(
         &format!("bs={frame_bytes}"),
         "count=1",
     ])?;
+    // Some old toolbox builds create files with no read bit for the shell
+    // user. The file is only a temporary transfer artifact.
+    adb.shell(&["chmod", "644", remote_path])?;
     adb.pull(remote_path, local_path)?;
 
     let mut raw = Vec::with_capacity(frame_bytes);
