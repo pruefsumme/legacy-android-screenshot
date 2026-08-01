@@ -1,0 +1,11 @@
+[package]
+name = "legacy-android-screenshot"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Capture screenshots from older Android devices over ADB"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4.6.1", features = ["derive"] }
+png = "0.18.1"
