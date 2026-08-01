@@ -21,6 +21,7 @@ pub struct CaptureOptions {
     pub output: PathBuf,
     pub framebuffer: String,
     pub pixel_format: PixelFormat,
+    pub verbose: bool,
 }
 
 #[derive(Debug)]
@@ -77,6 +78,7 @@ impl From<png::EncodingError> for Error {
 
 struct Adb {
     serial: String,
+    verbose: bool,
 }
 
 struct FramebufferInfo {
@@ -89,11 +91,15 @@ struct FramebufferInfo {
 pub fn capture(options: &CaptureOptions) -> Result<CaptureInfo, Error> {
     let serial = match &options.serial {
         Some(serial) => serial.clone(),
-        None => find_single_device()?,
+        None => find_single_device(options.verbose)?,
     };
     let adb = Adb {
         serial: serial.clone(),
+        verbose: options.verbose,
     };
+    if options.verbose {
+        eprintln!("[verbose] using ADB serial: {serial}");
+    }
     let framebuffer = FramebufferInfo::read(&adb, &options.framebuffer)?;
     let remote_path = temporary_remote_path();
     let local_path = temporary_local_path();
@@ -131,6 +137,17 @@ fn capture_frame(
         .checked_mul(framebuffer.height as usize)
         .ok_or_else(|| Error::InvalidFramebuffer("framebuffer size is too large".into()))?;
 
+    if adb.verbose {
+        eprintln!(
+            "[verbose] copying one visible framebuffer frame: {} rows × {} bytes = {} bytes",
+            framebuffer.height, framebuffer.stride, frame_bytes
+        );
+        eprintln!(
+            "[verbose] remote temporary file: {remote_path}; local temporary file: {}",
+            local_path.display()
+        );
+    }
+
     adb.shell(&[
         "dd",
         &format!("if={framebuffer_path}"),
@@ -145,6 +162,9 @@ fn capture_frame(
 
     let mut raw = Vec::with_capacity(frame_bytes);
     File::open(local_path)?.read_to_end(&mut raw)?;
+    if adb.verbose {
+        trace_bytes("bytes read from pulled framebuffer file", &raw);
+    }
     if raw.len() < frame_bytes {
         return Err(Error::InvalidFramebuffer(format!(
             "device returned {} bytes, expected {frame_bytes}",
@@ -165,6 +185,16 @@ fn capture_frame(
         },
         format => format,
     };
+    if adb.verbose {
+        let bytes_per_pixel = bytes_per_pixel(format);
+        eprintln!(
+            "[verbose] decoding {}x{} pixels: {bytes_per_pixel} bytes per pixel, {} bytes of pixels per row, {}-byte stride, format {format:?}",
+            framebuffer.width,
+            framebuffer.height,
+            framebuffer.width as usize * bytes_per_pixel,
+            framebuffer.stride,
+        );
+    }
     let rgba = decode_pixels(
         &raw[..frame_bytes],
         framebuffer.width,
@@ -172,12 +202,31 @@ fn capture_frame(
         framebuffer.stride,
         format,
     )?;
+    if adb.verbose {
+        trace_decoded_pixels(
+            &raw[..frame_bytes],
+            framebuffer.width,
+            framebuffer.height,
+            framebuffer.stride,
+            format,
+            &rgba,
+        );
+    }
     write_png(
         &options.output,
         framebuffer.width,
         framebuffer.height,
         &rgba,
     )?;
+    if adb.verbose {
+        eprintln!(
+            "[verbose] wrote {} RGBA bytes as {}x{} PNG to {}",
+            rgba.len(),
+            framebuffer.width,
+            framebuffer.height,
+            options.output.display()
+        );
+    }
     Ok(())
 }
 
@@ -185,13 +234,30 @@ impl Adb {
     fn command(&self, args: &[&str]) -> Result<Output, Error> {
         let mut command = Command::new("adb");
         command.arg("-s").arg(&self.serial).args(args);
-        command.output().map_err(|error| {
-            if error.kind() == io::ErrorKind::NotFound {
-                Error::AdbNotFound
-            } else {
-                Error::Io(error)
-            }
-        })
+        if self.verbose {
+            eprintln!(
+                "[verbose] running: adb -s {} {}",
+                self.serial,
+                args.join(" ")
+            );
+        }
+        command
+            .output()
+            .map_err(|error| {
+                if error.kind() == io::ErrorKind::NotFound {
+                    Error::AdbNotFound
+                } else {
+                    Error::Io(error)
+                }
+            })
+            .map(|output| {
+                if self.verbose {
+                    eprintln!("[verbose] exit status: {}", output.status);
+                    trace_bytes("ADB stdout", &output.stdout);
+                    trace_bytes("ADB stderr", &output.stderr);
+                }
+                output
+            })
     }
 
     fn shell(&self, args: &[&str]) -> Result<String, Error> {
@@ -220,7 +286,10 @@ fn checked_output(args: &[&str], output: Output) -> Result<String, Error> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-fn find_single_device() -> Result<String, Error> {
+fn find_single_device(verbose: bool) -> Result<String, Error> {
+    if verbose {
+        eprintln!("[verbose] running: adb devices");
+    }
     let output = Command::new("adb")
         .args(["devices"])
         .output()
@@ -231,6 +300,11 @@ fn find_single_device() -> Result<String, Error> {
                 Error::Io(error)
             }
         })?;
+    if verbose {
+        eprintln!("[verbose] exit status: {}", output.status);
+        trace_bytes("ADB stdout", &output.stdout);
+        trace_bytes("ADB stderr", &output.stderr);
+    }
     let text = checked_output(&["devices"], output)?;
     let devices: Vec<&str> = text
         .lines()
@@ -282,6 +356,11 @@ impl FramebufferInfo {
             return Err(Error::InvalidFramebuffer(format!(
                 "invalid framebuffer geometry: {width}x{height}, stride {stride}"
             )));
+        }
+        if adb.verbose {
+            eprintln!(
+                "[verbose] framebuffer metadata: virtual height {virtual_height}, visible size {width}x{height}, {bits_per_pixel} bits per pixel, stride {stride}"
+            );
         }
         Ok(Self {
             width,
@@ -349,6 +428,71 @@ fn temporary_local_path() -> PathBuf {
     ))
 }
 
+fn bytes_per_pixel(format: PixelFormat) -> usize {
+    match format {
+        PixelFormat::Rgba8888 | PixelFormat::Bgra8888 => 4,
+        PixelFormat::Rgb565 | PixelFormat::Bgr565 => 2,
+        PixelFormat::Rgb888 => 3,
+        PixelFormat::Auto => unreachable!(),
+    }
+}
+
+fn trace_bytes(label: &str, bytes: &[u8]) {
+    eprintln!("[verbose] {label}: {} bytes", bytes.len());
+    for (offset, chunk) in bytes.chunks(16).enumerate() {
+        let hex = chunk
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        eprintln!("[verbose]   {offset:08x}: {hex}");
+    }
+}
+
+fn trace_decoded_pixels(
+    raw: &[u8],
+    width: u32,
+    height: u32,
+    stride: usize,
+    format: PixelFormat,
+    rgba: &[u8],
+) {
+    let pixel_count = width as usize * height as usize;
+    let sample_count = pixel_count.min(8);
+    let pixel_bytes = bytes_per_pixel(format);
+    eprintln!(
+        "[verbose] converted {pixel_count} pixels: {} raw bytes -> {} RGBA bytes; {} padding bytes per row ignored",
+        raw.len(),
+        rgba.len(),
+        stride - width as usize * pixel_bytes,
+    );
+    for index in 0..sample_count {
+        let row = index / width as usize;
+        let column = index % width as usize;
+        let raw_start = row * stride + column * pixel_bytes;
+        let rgba_start = index * 4;
+        eprintln!(
+            "[verbose]   pixel ({column},{row}): [{}] -> [{}]",
+            raw[raw_start..raw_start + pixel_bytes]
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<Vec<_>>()
+                .join(" "),
+            rgba[rgba_start..rgba_start + 4]
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
+    }
+    if pixel_count > sample_count {
+        eprintln!(
+            "[verbose]   ... {} more pixels converted the same way",
+            pixel_count - sample_count
+        );
+    }
+}
+
 fn decode_pixels(
     raw: &[u8],
     width: u32,
@@ -356,12 +500,7 @@ fn decode_pixels(
     stride: usize,
     format: PixelFormat,
 ) -> Result<Vec<u8>, Error> {
-    let bytes_per_pixel = match format {
-        PixelFormat::Rgba8888 | PixelFormat::Bgra8888 => 4,
-        PixelFormat::Rgb565 | PixelFormat::Bgr565 => 2,
-        PixelFormat::Rgb888 => 3,
-        PixelFormat::Auto => unreachable!(),
-    };
+    let bytes_per_pixel = bytes_per_pixel(format);
     let row_bytes = width as usize * bytes_per_pixel;
     let required = stride
         .checked_mul(height as usize)
@@ -375,30 +514,33 @@ fn decode_pixels(
     let mut rgba = Vec::with_capacity(width as usize * height as usize * 4);
     for row in raw[..required].chunks_exact(stride).take(height as usize) {
         for pixel in row[..row_bytes].chunks_exact(bytes_per_pixel) {
-            let (red, green, blue, alpha) = match format {
-                PixelFormat::Rgba8888 => (pixel[0], pixel[1], pixel[2], pixel[3]),
-                PixelFormat::Bgra8888 => (pixel[2], pixel[1], pixel[0], pixel[3]),
-                PixelFormat::Rgb888 => (pixel[0], pixel[1], pixel[2], 255),
-                PixelFormat::Rgb565 | PixelFormat::Bgr565 => {
-                    let value = u16::from_le_bytes([pixel[0], pixel[1]]);
-                    let (red, blue) = if format == PixelFormat::Rgb565 {
-                        (value >> 11, value & 0x1f)
-                    } else {
-                        (value & 0x1f, value >> 11)
-                    };
-                    (
-                        expand_5(red as u8),
-                        expand_6(((value >> 5) & 0x3f) as u8),
-                        expand_5(blue as u8),
-                        255,
-                    )
-                }
-                PixelFormat::Auto => unreachable!(),
-            };
-            rgba.extend_from_slice(&[red, green, blue, alpha]);
+            rgba.extend_from_slice(&decode_pixel(pixel, format));
         }
     }
     Ok(rgba)
+}
+
+fn decode_pixel(pixel: &[u8], format: PixelFormat) -> [u8; 4] {
+    match format {
+        PixelFormat::Rgba8888 => [pixel[0], pixel[1], pixel[2], pixel[3]],
+        PixelFormat::Bgra8888 => [pixel[2], pixel[1], pixel[0], pixel[3]],
+        PixelFormat::Rgb888 => [pixel[0], pixel[1], pixel[2], 255],
+        PixelFormat::Rgb565 | PixelFormat::Bgr565 => {
+            let value = u16::from_le_bytes([pixel[0], pixel[1]]);
+            let (red, blue) = if format == PixelFormat::Rgb565 {
+                (value >> 11, value & 0x1f)
+            } else {
+                (value & 0x1f, value >> 11)
+            };
+            [
+                expand_5(red as u8),
+                expand_6(((value >> 5) & 0x3f) as u8),
+                expand_5(blue as u8),
+                255,
+            ]
+        }
+        PixelFormat::Auto => unreachable!(),
+    }
 }
 
 fn expand_5(value: u8) -> u8 {

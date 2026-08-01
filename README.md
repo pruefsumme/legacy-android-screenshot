@@ -47,6 +47,10 @@ If more than one device is connected, choose the phone explicitly:
 The program prints the screenshot size and the file it created. The output is
 a regular PNG that can be opened or shared like any other image.
 
+For a low-level trace of the ADB commands, framebuffer bytes, and pixel
+conversion, add `-v` (or `--verbose`). The raw framebuffer hex dump can be
+large for a full-size screen.
+
 ## How it works
 
 ![Text-only legacy Android screenshot capture flowchart](docs/flowchart.svg)

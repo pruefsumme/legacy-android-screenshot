@@ -1,4 +1,11 @@
+use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 use clap::{Parser, ValueEnum};
 use legacy_android_screenshot::{CaptureOptions, PixelFormat, capture};
@@ -25,6 +32,10 @@ struct Cli {
     /// Pixel layout used by the framebuffer. Auto is right for most devices.
     #[arg(long, value_enum, default_value_t = PixelFormatArg::Auto)]
     format: PixelFormatArg,
+
+    /// Print ADB commands, bytes, and decoding details to stderr.
+    #[arg(short = 'v', long)]
+    verbose: bool,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -52,14 +63,21 @@ impl From<PixelFormatArg> for PixelFormat {
 
 fn main() {
     let cli = Cli::parse();
+    let loader = (!cli.verbose && io::stderr().is_terminal()).then(Loader::start);
     let options = CaptureOptions {
         serial: cli.serial,
         output: cli.output,
         framebuffer: cli.framebuffer,
         pixel_format: cli.format.into(),
+        verbose: cli.verbose,
     };
 
-    match capture(&options) {
+    let result = capture(&options);
+    if let Some(loader) = loader {
+        loader.finish();
+    }
+
+    match result {
         Ok(info) => println!(
             "Saved {}x{} screenshot from {} to {}",
             info.width,
@@ -72,4 +90,46 @@ fn main() {
             std::process::exit(1);
         }
     }
+}
+
+struct Loader {
+    stop: Arc<AtomicBool>,
+    thread: JoinHandle<()>,
+}
+
+impl Loader {
+    fn start() -> Self {
+        let stop = Arc::new(AtomicBool::new(false));
+        let thread_stop = Arc::clone(&stop);
+        let thread = thread::spawn(move || {
+            let colors = [31, 33, 32, 36, 34, 35];
+            let mut offset = 0;
+            while !thread_stop.load(Ordering::Relaxed) {
+                let mut output = String::from("\r  ");
+                for dot in 0..4 {
+                    output.push_str(&format!(
+                        "\x1b[{}m.\x1b[0m ",
+                        colors[(offset + dot) % colors.len()]
+                    ));
+                }
+                output.push_str("capturing");
+                print_stderr(&output);
+                offset = (offset + 1) % colors.len();
+                thread::sleep(Duration::from_millis(120));
+            }
+        });
+        Self { stop, thread }
+    }
+
+    fn finish(self) {
+        self.stop.store(true, Ordering::Relaxed);
+        let _ = self.thread.join();
+        print_stderr("\r\x1b[2K");
+    }
+}
+
+fn print_stderr(message: &str) {
+    let mut stderr = io::stderr().lock();
+    let _ = write!(stderr, "{message}");
+    let _ = stderr.flush();
 }
