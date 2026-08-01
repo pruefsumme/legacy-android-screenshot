@@ -49,7 +49,7 @@ a regular PNG that can be opened or shared like any other image.
 
 ## How it works
 
-![Detailed legacy Android screenshot capture flowchart](docs/flowchart.png)
+![Text-only legacy Android screenshot capture flowchart](docs/flowchart.svg)
 
 The phone’s screen is briefly copied to a temporary file, transferred over
 ADB, and converted on the computer. Temporary files are removed when the

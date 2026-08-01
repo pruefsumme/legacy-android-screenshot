@@ -48,8 +48,10 @@ cargo test --offline
 
 The unit tests cover mode parsing, RGB565 conversion, and row stride handling.
 End-to-end testing requires a connected legacy Android device with readable
-framebuffer access. The repository’s README image was captured from the HTC
-Desire used during development.
+framebuffer access. The repository’s README example image was captured from
+the HTC Desire used during development. The README flowchart is intentionally
+a text-only SVG so labels stay exact and remain readable without rasterized
+illustrations.
 
 Keep the public README short and practical. Put protocol details, device
 quirks, and implementation changes here.

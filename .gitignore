@@ -1,4 +1,3 @@
 /target/
 *.png
 !docs/example.png
-!docs/flowchart.png

@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="680" viewBox="0 0 1500 680" role="img" aria-labelledby="title description">
+  <title id="title">How Legacy Android Screenshot Capture Works</title>
+  <desc id="description">A text-only five-stage flowchart from a legacy Android device to a PNG screenshot.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#111827"/>
+    </marker>
+    <style>
+      .background { fill: #f4f4f4; }
+      .title { fill: #111827; font: 700 34px Arial, sans-serif; }
+      .heading { fill: #111827; font: 700 21px Arial, sans-serif; }
+      .label { fill: #111827; font: 400 19px Arial, sans-serif; }
+      .small { fill: #374151; font: 400 16px Arial, sans-serif; }
+      .stage { stroke: #111827; stroke-width: 2; fill: none; }
+      .box-blue { fill: #c8d8f2; stroke: #111827; stroke-width: 1.5; }
+      .box-green { fill: #cbe5b8; stroke: #111827; stroke-width: 1.5; }
+      .box-lavender { fill: #d8cbed; stroke: #111827; stroke-width: 1.5; }
+      .box-cyan { fill: #b8e1e2; stroke: #111827; stroke-width: 1.5; }
+      .arrow { fill: none; stroke: #111827; stroke-width: 2; marker-end: url(#arrow); }
+      .two-way { fill: none; stroke: #111827; stroke-width: 2; marker-start: url(#arrow); marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect class="background" width="1500" height="680"/>
+  <text class="title" x="750" y="55" text-anchor="middle">How Legacy Android Screenshot Capture Works</text>
+
+  <text class="heading" x="145" y="105" text-anchor="middle">Legacy Android Device</text>
+  <rect class="stage" x="25" y="125" width="240" height="430"/>
+  <rect class="box-blue" x="45" y="155" width="200" height="75"/>
+  <text class="label" x="145" y="188" text-anchor="middle">HTC Desire /</text>
+  <text class="label" x="145" y="214" text-anchor="middle">Android 2.2.2</text>
+  <rect class="box-green" x="45" y="270" width="200" height="75"/>
+  <text class="label" x="145" y="315" text-anchor="middle">/dev/graphics/fb0</text>
+  <rect class="box-lavender" x="45" y="385" width="200" height="115"/>
+  <text class="label" x="145" y="430" text-anchor="middle">screen pixels</text>
+  <text class="small" x="145" y="462" text-anchor="middle">the visible display</text>
+
+  <text class="heading" x="425" y="105" text-anchor="middle">USB Debug Bridge</text>
+  <rect class="stage" x="305" y="125" width="240" height="430"/>
+  <rect class="box-green" x="325" y="155" width="200" height="75"/>
+  <text class="label" x="425" y="200" text-anchor="middle">USB debugging</text>
+  <rect class="box-blue" x="325" y="270" width="200" height="75"/>
+  <text class="label" x="425" y="315" text-anchor="middle">ADB shell + pull</text>
+  <rect class="box-lavender" x="325" y="385" width="200" height="115"/>
+  <text class="label" x="425" y="430" text-anchor="middle">binary-safe</text>
+  <text class="label" x="425" y="460" text-anchor="middle">file transfer</text>
+
+  <text class="heading" x="705" y="105" text-anchor="middle">Rust Capture Tool</text>
+  <rect class="stage" x="585" y="125" width="240" height="430"/>
+  <rect class="box-cyan" x="605" y="155" width="200" height="75"/>
+  <text class="label" x="705" y="188" text-anchor="middle">read framebuffer</text>
+  <text class="label" x="705" y="214" text-anchor="middle">metadata</text>
+  <rect class="box-cyan" x="605" y="270" width="200" height="75"/>
+  <text class="label" x="705" y="315" text-anchor="middle">dd copies one frame</text>
+  <rect class="box-cyan" x="605" y="385" width="200" height="115"/>
+  <text class="label" x="705" y="430" text-anchor="middle">temporary .raw</text>
+  <text class="small" x="705" y="462" text-anchor="middle">remote transfer file</text>
+
+  <text class="heading" x="985" y="105" text-anchor="middle">Pixel Decoder</text>
+  <rect class="stage" x="865" y="125" width="240" height="430"/>
+  <rect class="box-green" x="885" y="155" width="200" height="75"/>
+  <text class="label" x="985" y="188" text-anchor="middle">width + height</text>
+  <text class="label" x="985" y="214" text-anchor="middle">+ stride</text>
+  <rect class="box-lavender" x="885" y="270" width="200" height="75"/>
+  <text class="label" x="985" y="315" text-anchor="middle">RGBA8888 / RGB565</text>
+  <rect class="box-blue" x="885" y="385" width="200" height="115"/>
+  <text class="label" x="985" y="430" text-anchor="middle">convert pixels</text>
+  <text class="label" x="985" y="460" text-anchor="middle">to RGBA</text>
+
+  <text class="heading" x="1280" y="105" text-anchor="middle">PNG Output</text>
+  <rect class="stage" x="1160" y="125" width="240" height="430"/>
+  <rect class="box-blue" x="1180" y="155" width="200" height="75"/>
+  <text class="label" x="1280" y="200" text-anchor="middle">screenshot.png</text>
+  <rect class="box-green" x="1180" y="270" width="200" height="75"/>
+  <text class="label" x="1280" y="315" text-anchor="middle">480 × 800 example</text>
+  <rect class="box-lavender" x="1180" y="385" width="200" height="115"/>
+  <text class="label" x="1280" y="430" text-anchor="middle">temporary files</text>
+  <text class="label" x="1280" y="460" text-anchor="middle">removed after capture</text>
+
+  <path class="arrow" d="M265 340 H305"/>
+  <path class="arrow" d="M545 340 H585"/>
+  <path class="two-way" d="M825 340 H865"/>
+  <path class="arrow" d="M1105 340 H1160"/>
+  <text class="small" x="845" y="585" text-anchor="middle">binary-safe transfer</text>
+</svg>
