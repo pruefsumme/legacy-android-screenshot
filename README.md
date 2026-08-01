@@ -15,9 +15,26 @@ ADB screenshot command. It was tested with an HTC Desire running Android
 You need Rust, ADB, and USB debugging enabled on the phone.
 
 ```sh
-cargo build --release
-./target/release/legacy-android-screenshot -o screenshot.png
+./install.sh
+legacy-android-screenshot -o screenshot.png
 ```
+
+The installer builds the release binary and places it in
+`~/.local/bin`. If that directory is not already on your `PATH`, open a new
+shell or add it with:
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+For a system-wide install, use a writable prefix such as `/usr/local`:
+
+```sh
+sudo env PREFIX=/usr/local ./install.sh
+```
+
+To build without installing, use `cargo build --release` and run the binary
+from `target/release`.
 
 If more than one device is connected, choose the phone explicitly:
 
@@ -32,13 +49,7 @@ a regular PNG that can be opened or shared like any other image.
 
 ## How it works
 
-```mermaid
-flowchart LR
-    A[Android phone] -->|USB / ADB| B[Read the phone screen]
-    B --> C[Copy one temporary frame]
-    C --> D[Turn pixels into a PNG]
-    D --> E[screenshot.png]
-```
+![Detailed legacy Android screenshot capture flowchart](docs/flowchart.png)
 
 The phone’s screen is briefly copied to a temporary file, transferred over
 ADB, and converted on the computer. Temporary files are removed when the

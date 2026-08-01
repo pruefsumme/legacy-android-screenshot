@@ -53,3 +53,14 @@ Desire used during development.
 
 Keep the public README short and practical. Put protocol details, device
 quirks, and implementation changes here.
+
+## Installer
+
+`install.sh` is the supported Linux installation path. It builds with
+`cargo build --release --locked` and installs the binary with mode `0755`.
+The default destination is `$HOME/.local/bin`; `PREFIX` can be set for a
+system-wide destination, for example `PREFIX=/usr/local`.
+
+Keep the installer dependency-light: it should use tools normally present on
+a Linux development system (`bash`, `cargo`, and `install`) and should not
+silently invoke `sudo`.
