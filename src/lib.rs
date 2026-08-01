@@ -269,13 +269,8 @@ impl FramebufferInfo {
             Some(&read_required(adb, &format!("{base}/bits_per_pixel"))?),
             "bits per pixel",
         )?;
-        let height = read_mode_height(adb, &base).unwrap_or_else(|| {
-            if virtual_height >= width && virtual_height % 2 == 0 {
-                virtual_height / 2
-            } else {
-                virtual_height
-            }
-        });
+        let height =
+            read_mode_height(adb, &base).unwrap_or_else(|| infer_height(virtual_height, width));
         let default_stride = (width as usize)
             .saturating_mul(bits_per_pixel as usize)
             .div_ceil(8);
@@ -317,6 +312,15 @@ fn parse_mode_height(line: &str) -> Option<u32> {
     let after_x = &line[marker + 1..];
     let digits: String = after_x.chars().take_while(char::is_ascii_digit).collect();
     (!digits.is_empty()).then(|| digits.parse().ok()).flatten()
+}
+
+fn infer_height(virtual_height: u32, width: u32) -> u32 {
+    let likely_double_buffered = virtual_height >= width.saturating_mul(2);
+    if likely_double_buffered && virtual_height % 2 == 0 {
+        virtual_height / 2
+    } else {
+        virtual_height
+    }
 }
 
 fn parse_number(value: Option<&str>, label: &str) -> Result<u32, Error> {
@@ -427,6 +431,12 @@ mod tests {
     #[test]
     fn parses_mode_height() {
         assert_eq!(parse_mode_height("U:480x800p-0"), Some(800));
+    }
+
+    #[test]
+    fn does_not_halve_a_normal_framebuffer() {
+        assert_eq!(infer_height(800, 480), 800);
+        assert_eq!(infer_height(1600, 480), 800);
     }
 
     #[test]

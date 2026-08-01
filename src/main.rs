@@ -19,11 +19,11 @@ struct Cli {
     output: PathBuf,
 
     /// Linux framebuffer device on the phone.
-    #[arg(long, default_value = "/dev/graphics/fb0", hide = true)]
+    #[arg(long, default_value = "/dev/graphics/fb0")]
     framebuffer: String,
 
     /// Pixel layout used by the framebuffer. Auto is right for most devices.
-    #[arg(long, value_enum, default_value_t = PixelFormatArg::Auto, hide = true)]
+    #[arg(long, value_enum, default_value_t = PixelFormatArg::Auto)]
     format: PixelFormatArg,
 }
 
