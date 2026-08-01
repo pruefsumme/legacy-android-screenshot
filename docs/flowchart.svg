@@ -17,7 +17,6 @@
       .box-lavender { fill: #d8cbed; stroke: #111827; stroke-width: 1.5; }
       .box-cyan { fill: #b8e1e2; stroke: #111827; stroke-width: 1.5; }
       .arrow { fill: none; stroke: #111827; stroke-width: 2; marker-end: url(#arrow); }
-      .two-way { fill: none; stroke: #111827; stroke-width: 2; marker-start: url(#arrow); marker-end: url(#arrow); }
     </style>
   </defs>
 
@@ -79,7 +78,7 @@
 
   <path class="arrow" d="M265 340 H305"/>
   <path class="arrow" d="M545 340 H585"/>
-  <path class="two-way" d="M825 340 H865"/>
+  <path class="arrow" d="M825 340 H865"/>
   <path class="arrow" d="M1105 340 H1160"/>
   <text class="small" x="845" y="585" text-anchor="middle">binary-safe transfer</text>
 </svg>
